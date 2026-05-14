@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MemoryMesh Settings</title>
+<style>
+body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; color: #222; }
+h1 { font-size: 1.3rem; margin-bottom: 1.5rem; }
+label { display: block; margin-bottom: .4rem; font-weight: 500; font-size: .9rem; }
+input, select {
+  display: block; width: 100%; padding: 8px 12px;
+  border: 1px solid #ccc; border-radius: 6px; font-size: .95rem;
+  margin-bottom: 1.2rem;
+}
+button {
+  background: #1a1a2e; color: #fff; border: none;
+  border-radius: 6px; padding: 8px 22px; cursor: pointer; font-size: .95rem;
+}
+button:hover { background: #16213e; }
+#status { margin-top: .8rem; color: #2ecc71; font-size: .9rem; min-height: 1.2rem; }
+</style>
+</head>
+<body>
+<h1>🧠 MemoryMesh Settings</h1>
+
+<label for="apiUrl">API URL</label>
+<input id="apiUrl" type="url" placeholder="http://127.0.0.1:8765/api">
+
+<label for="topK">Default results (top-k)</label>
+<input id="topK" type="number" min="1" max="50" value="10">
+
+<label for="mode">Default search mode</label>
+<select id="mode">
+  <option value="hybrid">Hybrid (dense + sparse)</option>
+  <option value="dense">Dense (semantic)</option>
+  <option value="sparse">Sparse (BM25)</option>
+</select>
+
+<button id="save">Save</button>
+<p id="status"></p>
+
+<script src="options.js"></script>
+</body>
+</html>

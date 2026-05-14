@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <circle cx="64" cy="64" r="60" fill="#1a1a2e"/>
+  <!-- Brain outline simplified -->
+  <ellipse cx="48" cy="58" rx="20" ry="22" fill="none" stroke="#a0c4ff" stroke-width="4"/>
+  <ellipse cx="80" cy="58" rx="20" ry="22" fill="none" stroke="#a0c4ff" stroke-width="4"/>
+  <!-- Bridge -->
+  <line x1="52" y1="58" x2="76" y2="58" stroke="#a0c4ff" stroke-width="4"/>
+  <!-- Neural dots -->
+  <circle cx="40" cy="48" r="4" fill="#a0c4ff"/>
+  <circle cx="58" cy="44" r="4" fill="#a0c4ff"/>
+  <circle cx="70" cy="44" r="4" fill="#a0c4ff"/>
+  <circle cx="88" cy="48" r="4" fill="#a0c4ff"/>
+  <circle cx="64" cy="72" r="4" fill="#a0c4ff"/>
+</svg>

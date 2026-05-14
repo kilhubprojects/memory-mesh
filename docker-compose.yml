@@ -1,0 +1,66 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# MemoryMesh — docker-compose.yml
+#
+# Quick start:
+#   cp .env.example .env          # set your paths and tokens
+#   docker compose up -d
+#
+# The MCP HTTP endpoint is available at http://127.0.0.1:8765
+# The health endpoint is at              http://127.0.0.1:8766/health
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  memorymesh:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: memorymesh:latest
+
+    # Bind only to localhost — never expose on 0.0.0.0 without auth enabled.
+    ports:
+      - "127.0.0.1:8765:8765"    # MCP streamable-http
+      - "127.0.0.1:8766:8766"    # /health endpoint
+
+    volumes:
+      # Persistent index, SQLite DB, BM25 pickle, and audit log.
+      - memorymesh_state:/home/memorymesh/.memorymesh
+      # Mount your config file (must contain at least one source).
+      - ${MEMORYMESH_CONFIG_PATH:-./config.example.yaml}:/home/memorymesh/.memorymesh/config.yaml:ro
+      # Mount source directories as read-only data volumes.
+      # Adjust paths to match what you have in config.yaml.
+      - ${NOTES_PATH:-${HOME}/notes}:/data/notes:ro
+      - ${DOCS_PATH:-${HOME}/Documents}:/data/documents:ro
+      - ${PROJECTS_PATH:-${HOME}/projects}:/data/projects:ro
+
+    environment:
+      - MEMORYMESH_LOG_LEVEL=${MEMORYMESH_LOG_LEVEL:-INFO}
+      - MEMORYMESH_TRANSPORT=streamable-http
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  # ── Optional: Ollama for ask_memory / entity extraction / HyDE ──────────────
+  # Uncomment this block and set ollama.enabled: true in config.yaml.
+  # Then pull your model: docker compose exec ollama ollama pull mistral
+  #
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - "127.0.0.1:11434:11434"
+  #   volumes:
+  #     - ollama_models:/root/.ollama
+  #   restart: unless-stopped
+
+volumes:
+  memorymesh_state:
+    driver: local
+  # ollama_models:
+  #   driver: local

@@ -1,0 +1,19 @@
+{
+  "dxt_version": "0.1",
+  "name": "memorymesh",
+  "display_name": "MemoryMesh",
+  "version": "0.1.0",
+  "description": "Local MCP hub â€” semantic search over your personal files",
+  "author": {
+    "name": "Carlos Coelho",
+    "email": ""
+  },
+  "server": {
+    "type": "binary",
+    "entry_point": "memorymesh.exe",
+    "mcp_config": {
+      "command": "C:\\Users\\carlo\\Visual Studio Code\\eu\\memorymesh\\.venv\\Scripts\\memorymesh.exe",
+      "args": ["start", "--transport", "stdio"]
+    }
+  }
+}

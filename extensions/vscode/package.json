@@ -1,0 +1,86 @@
+{
+  "name": "memorymesh",
+  "displayName": "MemoryMesh",
+  "description": "Semantic search over your personal knowledge base via MemoryMesh.",
+  "version": "0.8.0",
+  "publisher": "memorymesh",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kilhubprojects/memory-mesh"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other", "AI"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "memorymesh.search",
+        "title": "MemoryMesh: Search Knowledge Base",
+        "icon": "$(search)"
+      },
+      {
+        "command": "memorymesh.indexNow",
+        "title": "MemoryMesh: Index Now"
+      },
+      {
+        "command": "memorymesh.showStatus",
+        "title": "MemoryMesh: Show Status"
+      }
+    ],
+    "configuration": {
+      "title": "MemoryMesh",
+      "properties": {
+        "memorymesh.apiUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8765/api",
+          "description": "URL of the MemoryMesh REST API."
+        },
+        "memorymesh.defaultTopK": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 50,
+          "description": "Default number of search results."
+        },
+        "memorymesh.searchMode": {
+          "type": "string",
+          "default": "hybrid",
+          "enum": ["hybrid", "dense", "sparse"],
+          "description": "Default search mode."
+        }
+      }
+    },
+    "menus": {
+      "commandPalette": [
+        {"command": "memorymesh.search"},
+        {"command": "memorymesh.indexNow"},
+        {"command": "memorymesh.showStatus"}
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "memorymesh.search",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.0"
+  }
+}

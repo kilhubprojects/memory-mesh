@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MemoryMesh</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<header>
+  <span class="logo">🧠</span>
+  <span class="title">MemoryMesh</span>
+  <span id="status-dot" class="dot offline" title="Checking…"></span>
+</header>
+
+<div class="search-row">
+  <input id="query" type="text" placeholder="Search your knowledge base…" autofocus>
+  <select id="mode">
+    <option value="hybrid">Hybrid</option>
+    <option value="dense">Dense</option>
+    <option value="sparse">Sparse</option>
+  </select>
+  <button id="search-btn">Search</button>
+</div>
+
+<div id="results"></div>
+
+<footer>
+  <a href="#" id="options-link">Settings</a>
+</footer>
+
+<script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,1196 @@
+# =============================================================================
+#  MemoryMesh — Example configuration
+# =============================================================================
+#  Copy this file to ./config.yaml (CWD) or ~/.memorymesh/config.yaml
+#  Both `~` and ${ENV_VAR} are expanded automatically.
+#  Anything you don't override falls back to the defaults below.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+#  1. Sources — directories MemoryMesh should index
+# -----------------------------------------------------------------------------
+#  Each entry is a "source". A source has:
+#    name        : human-readable identifier (must be unique).
+#    path        : absolute or `~`-expandable path.
+#    recursive   : whether to walk subdirectories.
+#    extensions  : optional whitelist. If omitted, supported defaults are used.
+#    ignore      : optional list of glob patterns relative to `path`.
+# -----------------------------------------------------------------------------
+sources:
+  - name: documents
+    path: ~/Documents
+    recursive: true
+    extensions: [.txt, .md, .pdf, .docx, .json]
+    ignore:
+      - "**/Backup/**"
+      - "**/*.tmp"
+
+  - name: projects
+    path: ~/Projects
+    recursive: true
+    extensions: [.py, .js, .ts, .rs, .go, .md, .yaml, .toml, .c, .cpp, .h]
+
+  - name: notes
+    path: ~/Notes
+    recursive: true
+    # `extensions` omitted -> defaults to: txt, md, rst
+
+
+# -----------------------------------------------------------------------------
+#  2. Global ignore patterns (always applied, on top of per-source `ignore`)
+# -----------------------------------------------------------------------------
+#  Patterns use forward slashes and `**` for recursion. Apply on every source.
+#  These defaults exist to protect you from indexing secrets or build junk.
+#  Edit with care.
+# -----------------------------------------------------------------------------
+global_ignore:
+  # Version control + dependency caches
+  - "**/.git/**"
+  - "**/.hg/**"
+  - "**/.svn/**"
+  - "**/node_modules/**"
+  - "**/__pycache__/**"
+  - "**/.venv/**"
+  - "**/venv/**"
+  - "**/.tox/**"
+  - "**/target/**"
+  - "**/dist/**"
+  - "**/build/**"
+
+  # Secrets / credentials (NEVER index these)
+  - "**/.env"
+  - "**/.env.*"
+  - "**/*.key"
+  - "**/*.pem"
+  - "**/id_rsa*"
+  - "**/id_ed25519*"
+  - "**/secrets/**"
+  - "**/.ssh/**"
+  - "**/.aws/**"
+  - "**/.gcloud/**"
+  - "**/.azure/**"
+
+  # Editor / OS junk
+  - "**/.DS_Store"
+  - "**/Thumbs.db"
+  - "**/.idea/**"
+  - "**/.vscode/**"
+
+
+# -----------------------------------------------------------------------------
+#  3. Embeddings
+# -----------------------------------------------------------------------------
+#  provider     : currently `sentence_transformers`. More providers planned
+#                 (ollama, openai, bge, etc).
+#  model        : any sentence-transformers compatible model id.
+#  device       : auto | cpu | cuda | mps
+#                 `auto` picks cuda > mps > cpu in that order.
+#  batch_size   : number of texts per embedding batch.
+#  normalize    : True -> unit-length vectors -> cosine == dot.
+# -----------------------------------------------------------------------------
+embeddings:
+  provider: sentence_transformers
+  model: all-MiniLM-L6-v2
+  # For mixed PT-BR + EN content, consider:
+  #   model: paraphrase-multilingual-MiniLM-L12-v2
+  device: auto
+  batch_size: 32
+  normalize: true
+
+
+# -----------------------------------------------------------------------------
+#  4. Chunking
+# -----------------------------------------------------------------------------
+#  Different file types use different splitting strategies.
+#  Sizes are approximate token counts.
+# -----------------------------------------------------------------------------
+chunking:
+  default:
+    strategy: recursive
+    chunk_size: 512
+    chunk_overlap: 50
+
+  markdown:
+    strategy: by_heading
+    max_chunk_size: 800
+
+  code:
+    strategy: tree_sitter
+    max_chunk_size: 1024
+    fallback: recursive
+
+
+# -----------------------------------------------------------------------------
+#  5. OCR (optional, off by default)
+# -----------------------------------------------------------------------------
+#  Triggered ONLY for files where the native parser returned (almost) no text.
+#  Requires Tesseract or EasyOCR installed locally.
+# -----------------------------------------------------------------------------
+ocr:
+  enabled: false
+  backend: tesseract            # tesseract | easyocr
+  languages: [eng, por]
+  trigger: empty_text_only      # always | empty_text_only
+  max_file_size_mb: 50
+
+
+# -----------------------------------------------------------------------------
+#  6. Search
+# -----------------------------------------------------------------------------
+#  Hybrid search = dense (embeddings) + sparse (BM25) fused with
+#  Reciprocal Rank Fusion (k=60 is the standard).
+# -----------------------------------------------------------------------------
+search:
+  default_top_k: 10
+  hybrid:
+    enabled: true
+    rrf_k: 60
+    over_fetch_factor: 3        # query top_k*3 in each index before fusion
+  reranker:
+    enabled: true
+    # BAAI/bge-reranker-v2-m3 is the default and strongly recommended.
+    # It was trained on multilingual + code corpora, so it understands
+    # code search queries and technical documentation — unlike ms-marco
+    # models (trained on web Q&A pairs), which give negative scores to
+    # code/doc passages and hurt NDCG@10 on technical corpora.
+    model: BAAI/bge-reranker-v2-m3
+    top_k_before_rerank: 35    # over-fetch this many hits before reranking
+  query_expansion:
+    enabled: true
+    n_lexical_variants: 1      # 1 = minimal noise, improves recall without cluttering
+    use_hyde: false            # requires ollama.enabled: true
+
+
+# -----------------------------------------------------------------------------
+#  7. Storage layout
+# -----------------------------------------------------------------------------
+storage:
+  base_dir: ~/.memorymesh
+  vector_db_subdir: chroma_db
+  metadata_db: metadata.sqlite3
+  bm25_pickle: bm25.pkl
+  audit_log: audit.jsonl
+
+
+# -----------------------------------------------------------------------------
+#  8. MCP server
+# -----------------------------------------------------------------------------
+#  transport         : stdio (default, used by Claude Desktop)
+#                      or streamable-http (used by daemon mode).
+#  http.host         : 127.0.0.1 ALWAYS, unless you really know what you're
+#                      doing. Exposing this server on a network is unsafe
+#                      until per-client auth is implemented.
+#  http.port         : default 8765
+# -----------------------------------------------------------------------------
+server:
+  transport: stdio
+  http:
+    host: 127.0.0.1
+    port: 8765
+
+
+# -----------------------------------------------------------------------------
+#  9. Watcher (only used in daemon mode)
+# -----------------------------------------------------------------------------
+#  debounce_ms        : group rapid-fire events on the same path within this
+#                       window. Many editors save twice during auto-formatting.
+#  worker_concurrency : how many files can be (re)indexed in parallel.
+#  use_polling        : `true` for network drives or WSL mounts where native
+#                       filesystem events are unreliable.
+# -----------------------------------------------------------------------------
+watcher:
+  enabled: true
+  debounce_ms: 1500
+  worker_concurrency: 2
+  use_polling: false
+
+
+# -----------------------------------------------------------------------------
+#  10. Logging
+# -----------------------------------------------------------------------------
+#  level     : DEBUG | INFO | WARNING | ERROR | CRITICAL
+#  format    : pretty (human-readable) | json (structured for piping/parsing)
+#  file      : path to log file. Set to null to log only to stderr.
+#  rotation  : size threshold for log rotation.
+#  retention : how long to keep rotated logs.
+# -----------------------------------------------------------------------------
+logging:
+  level: INFO
+  format: pretty
+  file: ~/.memorymesh/logs/memorymesh.log
+  rotation: 10 MB
+  retention: 14 days
+
+
+# -----------------------------------------------------------------------------
+#  11. RAG with local LLM via Ollama  (off by default)
+# -----------------------------------------------------------------------------
+#  Enables the `ask_memory` MCP tool, HyDE query expansion, and optional
+#  document summarisation at index time.
+#
+#  Install Ollama:  https://ollama.ai
+#  Pull a model:   ollama pull llama3
+#
+#  PRIVACY NOTE: when enabled, document text is sent to the local Ollama
+#  process (not the internet), but it IS leaving the MemoryMesh process.
+#  A WARNING is logged on the first generate() call per session.
+# -----------------------------------------------------------------------------
+ollama:
+  enabled: false
+  base_url: http://localhost:11434
+  model: llama3
+  timeout_s: 60
+
+
+# -----------------------------------------------------------------------------
+#  12. Indexing enrichment  (off by default)
+# -----------------------------------------------------------------------------
+#  generate_summaries : when `true` AND `ollama.enabled: true`, the indexer
+#    calls Ollama after each file to generate a 2-3 sentence search-optimised
+#    summary.  The summary is stored as a special chunk (chunk_type="summary")
+#    used only for retrieval — it never appears in search results directly.
+#    Significantly improves recall for short or abstract queries.
+# -----------------------------------------------------------------------------
+indexing:
+  generate_summaries: false  # requires ollama.enabled: true
+
+
+# =============================================================================
+#  Wave 3: Memory primitives — tiers, forgetting, episodic log, entity graph
+# =============================================================================
+
+memory:
+
+  # ---------------------------------------------------------------------------
+  #  13. Tiered memory (hot / warm / cold)
+  # ---------------------------------------------------------------------------
+  #  All chunks are automatically promoted or demoted between tiers based on
+  #  access frequency.  No configuration needed for the default behaviour.
+  #
+  #  hot_tier_days   : chunks accessed within N days are kept in the hot
+  #                    in-memory LRU cache (fast lookups, no decay).
+  #  cold_tier_days  : chunks not touched for N days fall to cold tier.
+  #  hot_max_chunks  : maximum entries in the in-process hot cache.
+  # ---------------------------------------------------------------------------
+  tiers:
+    hot_tier_days: 7
+    cold_tier_days: 90
+    hot_max_chunks: 500
+
+  # ---------------------------------------------------------------------------
+  #  14. Forgetting policy
+  # ---------------------------------------------------------------------------
+  #  When enabled, cold-tier chunks receive a time-decayed relevance score
+  #  at query time:
+  #    effective_score = original_score × max(floor, 0.5^(age_days / half_life))
+  #
+  #  Use pin_memory to protect important chunks from decay.
+  # ---------------------------------------------------------------------------
+  forgetting:
+    enabled: false
+    decay_half_life_days: 90.0   # score halves every N days of inactivity
+    min_score_floor: 0.1         # floor — score never drops below this fraction
+
+  # ---------------------------------------------------------------------------
+  #  15. Episodic memory timeline
+  # ---------------------------------------------------------------------------
+  #  Records retrieval events automatically so you (or an agent) can ask
+  #  "what was retrieved last week?" via the query_timeline MCP tool.
+  # ---------------------------------------------------------------------------
+  episodic:
+    enabled: true
+    auto_record: true            # record an event on every search_memory call
+
+  # ---------------------------------------------------------------------------
+  #  16. Entity extraction (requires ollama.enabled: true)
+  # ---------------------------------------------------------------------------
+  #  After each file is indexed, MemoryMesh sends a short excerpt to Ollama
+  #  and extracts named entities (people, projects, concepts).  Entities are
+  #  stored in a lightweight graph table and can be queried via list_entities.
+  #
+  #  PRIVACY NOTE: excerpt text (up to 1 500 chars per chunk) is sent to the
+  #  local Ollama process.
+  # ---------------------------------------------------------------------------
+  entity_extraction:
+    enabled: false               # requires ollama.enabled: true
+    extract_types:
+      - person
+      - project
+      - concept
+      # - location
+
+
+# =============================================================================
+#  Wave 4: Auth — per-client identity, ACL, rate limiting, revocation
+#
+#  Safe single-user default: auth.enabled: false.
+#  Enable when multiple AI agents (e.g. Claude, custom scripts, CI bots)
+#  share the same MemoryMesh daemon and you want access control.
+# =============================================================================
+
+auth:
+  enabled: false
+
+  # Default permissions for clients not listed in `agents` below.
+  default_permission: read         # read | read+index | read+index+delete | admin
+  default_rate_limit_per_min: 120  # token-bucket refill; 0 = unlimited
+
+  agents:
+    # Read-only access to all sources.
+    - client_id: claude-desktop
+      name: Claude Desktop
+      permission: read
+      sources: []                  # empty list = all sources
+      rate_limit_per_min: 120
+
+    # Can read AND trigger re-indexing (e.g. a CI pipeline agent).
+    - client_id: ci-indexer
+      name: CI indexer
+      permission: read+index
+      sources: []
+      rate_limit_per_min: 60
+
+    # Restricted agent: only the "notes" source is visible.
+    - client_id: phone-agent
+      name: Mobile assistant
+      permission: read
+      sources:
+        - notes
+      rate_limit_per_min: 30
+
+    # Full admin (can delete, pin/unpin, manage tiers).
+    # - client_id: admin
+    #   name: Admin CLI
+    #   permission: admin
+    #   sources: []
+    #   rate_limit_per_min: 0      # 0 = unlimited
+
+
+# =============================================================================
+#  Connectors — pull data from external sources into the index
+# =============================================================================
+#  Each connector is opt-in.  Uncomment and configure as needed.
+#  Call `memorymesh sync` (or trigger via `index_now` MCP tool) to run them.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+#  Connector 1 — Browser History  (Chrome / Firefox / Edge)
+# -----------------------------------------------------------------------------
+#  Reads the local SQLite history database.  Stdlib only — no extra packages.
+#  profile_path: null = auto-detect OS default (copy is made; live DB untouched)
+# -----------------------------------------------------------------------------
+# connectors:
+#   browser_history:
+#     enabled: false
+#     browser: chrome           # chrome | firefox | edge
+#     profile_path: null        # null = auto-detect
+#     days_past: 90
+#     max_urls: 5000
+#     source_name: browser_history
+
+
+# -----------------------------------------------------------------------------
+#  Connector 2 — Kindle Highlights
+# -----------------------------------------------------------------------------
+#  Reads "My Clippings.txt" from a Kindle device or backup.  Stdlib only.
+#  clippings_path: path to My Clippings.txt (required — no auto-detection)
+# -----------------------------------------------------------------------------
+# connectors:
+#   kindle:
+#     enabled: false
+#     clippings_path: ~/Kindle/documents/My Clippings.txt
+#     source_name: kindle
+
+
+# -----------------------------------------------------------------------------
+#  Connector 3 — RSS / Atom Feeds
+# -----------------------------------------------------------------------------
+#  Fetches article content from RSS/Atom feeds.
+#  Requires: uv add feedparser   (or: uv add 'memorymesh-mcp[rss]')
+# -----------------------------------------------------------------------------
+# connectors:
+#   rss:
+#     enabled: false
+#     feeds:
+#       - https://simonwillison.net/atom/everything/
+#       - https://feeds.feedburner.com/PythonInsider
+#     max_items_per_feed: 50
+#     days_past: 30
+#     source_name: rss
+
+
+# -----------------------------------------------------------------------------
+#  Connector 4 — Zotero Research Library
+# -----------------------------------------------------------------------------
+#  Reads the local Zotero SQLite database.  Stdlib only.
+#  db_path: null = auto-detect ~/Zotero/zotero.sqlite
+# -----------------------------------------------------------------------------
+# connectors:
+#   zotero:
+#     enabled: false
+#     db_path: null             # null = ~/Zotero/zotero.sqlite
+#     include_notes: true
+#     include_abstracts: true
+#     source_name: zotero
+
+
+# -----------------------------------------------------------------------------
+#  Connector 5 — WhatsApp Chat Exports
+# -----------------------------------------------------------------------------
+#  Parses .txt files exported via "Export Chat" in the WhatsApp mobile app.
+#  Handles both Android (MM/DD/YYYY, HH:MM) and iOS ([DD/MM/YYYY, HH:MM:SS])
+#  formats automatically.
+#  export_path: a single .txt file OR a directory of .txt export files.
+#  chunk_size: number of messages grouped into one searchable document.
+# -----------------------------------------------------------------------------
+# connectors:
+#   whatsapp:
+#     enabled: false
+#     export_path: ~/Documents/WhatsApp
+#     chunk_size: 50
+#     source_name: whatsapp
+
+
+# -----------------------------------------------------------------------------
+#  Connector 6 — Telegram Desktop Export
+# -----------------------------------------------------------------------------
+#  Parses the result.json produced by Telegram Desktop →
+#  Settings → Export Telegram Data → Machine-readable JSON.
+#  export_path: path to result.json OR to the export directory.
+#  chat_types: filter by Telegram chat type.
+# -----------------------------------------------------------------------------
+# connectors:
+#   telegram:
+#     enabled: false
+#     export_path: ~/Downloads/Telegram Desktop/result.json
+#     chat_types:
+#       - personal_chat
+#       - private_group
+#       - private_supergroup
+#     chunk_size: 50
+#     source_name: telegram
+
+
+# -----------------------------------------------------------------------------
+#  Connector 7 — Twitter/X Data Archive
+# -----------------------------------------------------------------------------
+#  Parses data/tweets.js (and optionally data/likes.js) from a Twitter/X
+#  account archive.  Accepts the raw unzipped directory OR a .zip file.
+#  Download the archive: Settings → Your Account → Download an archive.
+# -----------------------------------------------------------------------------
+# connectors:
+#   twitter:
+#     enabled: false
+#     archive_path: ~/Downloads/twitter-2024-01-01
+#     include_likes: false
+#     source_name: twitter
+
+
+# -----------------------------------------------------------------------------
+#  Connector 8 — Spotify Extended Streaming History
+# -----------------------------------------------------------------------------
+#  Reads Streaming_History_Audio_*.json files.
+#  Download: Account → Privacy → Download your data → Extended streaming history.
+#  min_ms_played: skip tracks played for fewer than this many milliseconds
+#                 (default 30 000 ms = 30 s, filters accidental plays).
+# -----------------------------------------------------------------------------
+# connectors:
+#   spotify:
+#     enabled: false
+#     history_path: ~/Downloads/spotify
+#     min_ms_played: 30000
+#     source_name: spotify
+
+
+# -----------------------------------------------------------------------------
+#  Connector 9 — Notion
+# -----------------------------------------------------------------------------
+#  Fetches pages from your Notion workspace via the Notion API (urllib only).
+#  api_key: Notion integration token (secret_...).
+#  database_ids: list of database UUIDs to index (empty = skip).
+#  page_ids:     explicit page UUIDs to index (empty = skip).
+#  If both are empty, a workspace search is performed to find all pages.
+#  Rate limit: 333 ms sleep between requests (~3 req/s Notion limit).
+# -----------------------------------------------------------------------------
+# connectors:
+#   notion:
+#     enabled: false
+#     api_key: secret_abc123...
+#     database_ids: []
+#     page_ids: []
+#     max_pages: 500
+#     source_name: notion
+
+
+# -----------------------------------------------------------------------------
+#  Connector 10 — GitHub Issues & PRs
+# -----------------------------------------------------------------------------
+#  Fetches issues and pull requests via the GitHub REST API (urllib only).
+#  token: GitHub personal access token (ghp_...) or fine-grained token.
+#  repos: list of "owner/repo" strings.
+#  days_past: only index items whose created_at is within this many days.
+#  Rate limit: sleeps automatically when X-RateLimit-Remaining < 10.
+# -----------------------------------------------------------------------------
+# connectors:
+#   github:
+#     enabled: false
+#     token: ghp_abc123...
+#     repos:
+#       - octocat/Hello-World
+#     include_issues: true
+#     include_prs: true
+#     include_comments: true
+#     state: all                 # open | closed | all
+#     days_past: 365
+#     max_items_per_repo: 500
+#     source_name: github
+
+
+# -----------------------------------------------------------------------------
+#  Connector 11 — Readwise Highlights
+# -----------------------------------------------------------------------------
+#  Fetches book / article / tweet highlights from Readwise API v2 (urllib only).
+#  api_key: Readwise token from https://readwise.io/access_token
+#  source_types: filter by category (books, articles, tweets, podcasts).
+#                Empty list = all categories.
+#  updated_after: ISO 8601 date for the first run (overridden by checkpoint).
+#  Checkpoint: ~/.memorymesh/readwise_checkpoint.json (incremental sync).
+# -----------------------------------------------------------------------------
+# connectors:
+#   readwise:
+#     enabled: false
+#     api_key: your_readwise_token
+#     source_types: []           # or: [books, articles]
+#     updated_after: null        # e.g. "2024-01-01"
+#     source_name: readwise
+
+
+# -----------------------------------------------------------------------------
+#  Connector 12 — Slack
+# -----------------------------------------------------------------------------
+#  Fetches channel messages via the Slack Web API (urllib only).
+#  token: Bot OAuth token (xoxb-...).
+#  Required scopes: channels:history, channels:read, users:read.
+#  channel_ids: explicit list of channel IDs. Empty = all public channels.
+#  Rate limit: 1.2 s sleep between channels (Slack Tier 3: ~50 req/min).
+# -----------------------------------------------------------------------------
+# connectors:
+#   slack:
+#     enabled: false
+#     token: xoxb-...
+#     channel_ids: []            # or: [C012AB3CD, C098XY7ZA]
+#     days_past: 30
+#     max_messages_per_channel: 1000
+#     source_name: slack
+
+
+# -----------------------------------------------------------------------------
+#  Connector 13 — Apple Health Export
+# -----------------------------------------------------------------------------
+#  Parses the Apple Health XML export (Health app → Profile →
+#  Export All Health Data → export.zip).  Stdlib only — no extra packages.
+#  export_path: path to export.xml OR export.zip.
+#  record_types: HK type identifiers to index.  Empty = all.
+#  Uses iterparse streaming so multi-GB files are handled efficiently.
+# -----------------------------------------------------------------------------
+# connectors:
+#   apple_health:
+#     enabled: false
+#     export_path: ~/Downloads/export.zip
+#     record_types: []           # or: [HKQuantityTypeIdentifierStepCount]
+#     days_past: 365
+#     source_name: apple_health
+
+
+# -----------------------------------------------------------------------------
+#  Connector 14 — Google Maps Location History
+# -----------------------------------------------------------------------------
+#  Parses Google Takeout location history.  Accepts:
+#    • Records.json (raw GPS) — summarised by day; no coordinates stored.
+#    • Semantic Location History/ (inferred places) — one doc per visit.
+#    • A Takeout .zip archive — extracted automatically.
+#  Stdlib only — no extra packages.
+# -----------------------------------------------------------------------------
+# connectors:
+#   google_location:
+#     enabled: false
+#     export_path: ~/Downloads/Takeout/Location History
+#     days_past: 365
+#     source_name: google_location
+
+
+# -----------------------------------------------------------------------------
+#  Connector 15 — Strava Activities
+# -----------------------------------------------------------------------------
+#  Fetches activities via the Strava API v3 (urllib only).
+#  Access tokens expire every 6 hours; the connector refreshes automatically
+#  using client_secret + refresh_token on every run.
+#  Obtain credentials: https://www.strava.com/settings/api
+# -----------------------------------------------------------------------------
+# connectors:
+#   strava:
+#     enabled: false
+#     client_id: "12345"
+#     client_secret: your_client_secret
+#     refresh_token: your_refresh_token
+#     days_past: 365
+#     max_activities: 500
+#     source_name: strava
+
+
+# -----------------------------------------------------------------------------
+#  Connector 16 — Bank / Credit Card CSV
+# -----------------------------------------------------------------------------
+#  Parses transaction CSV exports.  Column names are auto-detected if not
+#  specified.  Accepts a single file or a directory of *.csv files.
+#  Transactions are grouped by calendar month.  Descriptions are never logged.
+#  currency: ISO 4217 code shown in document text (e.g. BRL, USD, EUR).
+# -----------------------------------------------------------------------------
+# connectors:
+#   bank:
+#     enabled: false
+#     csv_path: ~/Downloads/bank_statements
+#     date_column: ""            # empty = auto-detect
+#     description_column: ""
+#     amount_column: ""
+#     currency: BRL
+#     source_name: bank
+
+
+# -----------------------------------------------------------------------------
+#  Connector 17 — Discord (DiscordChatExporter JSON exports)
+# -----------------------------------------------------------------------------
+#  Parses JSON files exported by the open-source DiscordChatExporter tool.
+#  export_path: directory containing *.json export files.
+#  One document is yielded per channel-day pair.  Bot messages are skipped.
+# -----------------------------------------------------------------------------
+# connectors:
+#   discord:
+#     enabled: false
+#     export_path: ~/Downloads/Discord/exports
+#     source_name: discord
+
+
+# -----------------------------------------------------------------------------
+#  Connector 18 — LinkedIn Data Export
+# -----------------------------------------------------------------------------
+#  Parses LinkedIn CSV exports (Settings → Data Privacy → Get a copy of
+#  your data).  Handles: Connections.csv, messages.csv, shares.csv / Posts.csv
+#  export_path: directory containing the unzipped LinkedIn export.
+# -----------------------------------------------------------------------------
+# connectors:
+#   linkedin:
+#     enabled: false
+#     export_path: ~/Downloads/LinkedIn_export
+#     include_connections: true
+#     include_messages: true
+#     include_posts: true
+#     source_name: linkedin
+
+
+# -----------------------------------------------------------------------------
+#  Connector 19 — YouTube Watch History (Google Takeout)
+# -----------------------------------------------------------------------------
+#  Parses watch-history.json from a Google Takeout export.
+#  Accepts: watch-history.json directly, a Takeout directory, or a .zip archive.
+#  One document is yielded per calendar month.  Removed-video entries skipped.
+#  days_past: 0 = no cutoff; index the full history.
+# -----------------------------------------------------------------------------
+# connectors:
+#   youtube:
+#     enabled: false
+#     export_path: ~/Downloads/Takeout/YouTube and YouTube Music/history
+#     days_past: 365
+#     source_name: youtube
+
+
+# -----------------------------------------------------------------------------
+#  Connector 20 — Facebook / Meta Data Archive
+# -----------------------------------------------------------------------------
+#  Parses the JSON export from Facebook (Settings → Your Facebook Information
+#  → Download Your Information → JSON format).
+#  Accepts an extracted directory OR a .zip archive directly.
+#  Automatically corrects Facebook's broken UTF-8 encoding.
+# -----------------------------------------------------------------------------
+# connectors:
+#   facebook:
+#     enabled: false
+#     export_path: ~/Downloads/facebook-export
+#     include_posts: true
+#     include_messages: true
+#     source_name: facebook
+
+
+# -----------------------------------------------------------------------------
+#  Connector 21 — Instagram Data Archive
+# -----------------------------------------------------------------------------
+#  Parses the JSON export from Instagram (Settings → Your Activity →
+#  Download Your Information → JSON format).
+#  Accepts an extracted directory OR a .zip archive directly.
+#  Automatically corrects Meta's broken UTF-8 encoding.
+# -----------------------------------------------------------------------------
+# connectors:
+#   instagram:
+#     enabled: false
+#     export_path: ~/Downloads/instagram-export
+#     include_posts: true
+#     include_messages: true
+#     source_name: instagram
+
+
+# -----------------------------------------------------------------------------
+#  Connector 22 — Pinterest Data Export
+# -----------------------------------------------------------------------------
+#  Parses the Pinterest CSV export (Settings → Privacy and Data →
+#  Request Your Data).  Accepts a single pinterest-*.csv file or a directory.
+#  Pins are grouped by Board — one document per board.
+# -----------------------------------------------------------------------------
+# connectors:
+#   pinterest:
+#     enabled: false
+#     export_path: ~/Downloads/pinterest-2024-01-01.csv
+#     source_name: pinterest
+
+
+# -----------------------------------------------------------------------------
+#  Connector 23 — Goodreads Library Export
+# -----------------------------------------------------------------------------
+#  Parses the Goodreads library CSV (My Books → Import and Export →
+#  Export Library).  One document per book.
+#  shelves: restrict to specific shelf names; empty = index all books.
+#  Values matched case-insensitively against Exclusive Shelf and Bookshelves.
+# -----------------------------------------------------------------------------
+# connectors:
+#   goodreads:
+#     enabled: false
+#     export_path: ~/Downloads/goodreads_library_export.csv
+#     shelves: []                # e.g. [read, currently-reading]
+#     source_name: goodreads
+
+
+# -----------------------------------------------------------------------------
+#  Connector 24 — Anki Flashcard Collection
+# -----------------------------------------------------------------------------
+#  Reads the local Anki SQLite collection (collection.anki2).  A safe copy
+#  is made before opening so Anki's write-ahead-lock is never touched.
+#  HTML is stripped from card fields.  One document per note.
+#  db_path: null = auto-detect ~/Documents/Anki/User 1/collection.anki2
+# -----------------------------------------------------------------------------
+# connectors:
+#   anki:
+#     enabled: false
+#     db_path: null              # null = auto-detect
+#     source_name: anki
+
+
+# -----------------------------------------------------------------------------
+#  Connector 25 — Logseq Graph
+# -----------------------------------------------------------------------------
+#  Reads a Logseq graph directory and strips Logseq-specific block syntax.
+#  Journals are flagged is_journal=true in metadata.  [[wikilinks]] and
+#  extracted key:: value properties are stored in metadata.
+#  vault_path: root directory of the Logseq graph.
+# -----------------------------------------------------------------------------
+# connectors:
+#   logseq:
+#     enabled: false
+#     vault_path: ~/Logseq/my-graph
+#     pages_subdir: pages
+#     journals_subdir: journals
+#     source_name: logseq
+
+
+# -----------------------------------------------------------------------------
+#  Connector 26 — Letterboxd Data Export
+# -----------------------------------------------------------------------------
+#  Parses Letterboxd CSV exports (Settings → Import & Export → Export Your
+#  Data): diary.csv, reviews.csv, watchlist.csv.
+#  Diary entries and reviews are merged on (Name, Watched Date).
+#  All three files are optional — missing files are silently skipped.
+# -----------------------------------------------------------------------------
+# connectors:
+#   letterboxd:
+#     enabled: false
+#     export_path: ~/Downloads/letterboxd
+#     source_name: letterboxd
+
+
+# -----------------------------------------------------------------------------
+#  Connector 27 — Reddit (public JSON API, no OAuth required)
+# -----------------------------------------------------------------------------
+#  Fetches submitted posts and comments for a public Reddit profile.
+#  Reddit requires a descriptive User-Agent; the connector sends
+#  "MemoryMesh/0.7 (personal data sync)" automatically.
+#  subreddits: optional list — empty = all subreddits indexed.
+#  Sleeps 1 s between paginated requests (Reddit unauthenticated rate limit).
+# -----------------------------------------------------------------------------
+# connectors:
+#   reddit:
+#     enabled: false
+#     username: my_reddit_username
+#     include_posts: true
+#     include_comments: true
+#     subreddits: []             # e.g. [python, MachineLearning]
+#     days_past: 365
+#     max_items: 500
+#     source_name: reddit
+
+
+# -----------------------------------------------------------------------------
+#  Connector 28 — Last.fm Scrobble History
+# -----------------------------------------------------------------------------
+#  Fetches listening history from the Last.fm API, grouped by calendar month.
+#  api_key: free key from https://www.last.fm/api/account/create
+#  Currently-playing tracks (no timestamp) are automatically skipped.
+# -----------------------------------------------------------------------------
+# connectors:
+#   lastfm:
+#     enabled: false
+#     api_key: your_lastfm_api_key
+#     username: my_lastfm_user
+#     days_past: 90
+#     source_name: lastfm
+
+
+# -----------------------------------------------------------------------------
+#  Connector 29 — Steam Game Library
+# -----------------------------------------------------------------------------
+#  Fetches owned games and playtime from the Steam Web API.
+#  api_key: obtain at https://steamcommunity.com/dev/apikey
+#  steam_id: 64-bit SteamID (find at steamid.io or similar tools).
+#  include_achievements: adds "Achievements: X/Y" per game (1 extra API
+#    call per game with ≥ 1 h played; sleeps 1 s between calls).
+#  Always yields one summary doc for recently played games.
+# -----------------------------------------------------------------------------
+# connectors:
+#   steam:
+#     enabled: false
+#     api_key: your_steam_api_key
+#     steam_id: "76561198012345678"
+#     include_achievements: false
+#     min_playtime_hours: 0.1
+#     source_name: steam
+
+
+# -----------------------------------------------------------------------------
+#  Connector 30 — HackerNews (Algolia API, no key required)
+# -----------------------------------------------------------------------------
+#  Fetches stories and comments submitted by a HN user via the public
+#  Algolia HN search API.  HTML is stripped from comment text.
+# -----------------------------------------------------------------------------
+# connectors:
+#   hackernews:
+#     enabled: false
+#     username: my_hn_username
+#     include_stories: true
+#     include_comments: true
+#     days_past: 365
+#     max_items: 500
+#     source_name: hackernews
+
+
+# -----------------------------------------------------------------------------
+#  Connector 31 — Pocket Saved Articles
+# -----------------------------------------------------------------------------
+#  Fetches saved articles from Pocket using the Pocket v3 API.
+#  Obtain credentials:
+#    1. Create an app at https://getpocket.com/developer/apps/new
+#    2. Run the OAuth flow to get an access_token for your account.
+#  state: unread | archive | all
+# -----------------------------------------------------------------------------
+# connectors:
+#   pocket:
+#     enabled: false
+#     consumer_key: "12345-abcdef..."
+#     access_token: "user_access_token"
+#     state: all
+#     days_past: 365
+#     max_items: 1000
+#     source_name: pocket
+
+
+# -----------------------------------------------------------------------------
+#  Connector 32 — Linear Issues
+# -----------------------------------------------------------------------------
+#  Fetches issues assigned to you via the Linear GraphQL API.
+#  api_key: personal API key from https://linear.app/settings/api
+#    (passed as Authorization header — no "Bearer" prefix required).
+#  team_ids: UUIDs of teams to restrict to (empty = all teams).
+#  states: state names to restrict to, e.g. ["In Progress", "Done"].
+# -----------------------------------------------------------------------------
+# connectors:
+#   linear:
+#     enabled: false
+#     api_key: lin_api_your_key_here
+#     team_ids: []               # e.g. [uuid-team-1, uuid-team-2]
+#     states: []                 # e.g. [In Progress, Done]
+#     days_past: 180
+#     source_name: linear
+
+
+# -----------------------------------------------------------------------------
+#  Connector 33 — Jira Issues
+# -----------------------------------------------------------------------------
+#  Fetches issues from Jira Cloud via the REST API v3.
+#  base_url: your Jira Cloud URL, e.g. https://myorg.atlassian.net
+#  email: your Atlassian account email.
+#  api_token: generate at https://id.atlassian.com/manage-profile/security/api-tokens
+#  project_keys: restrict to these project keys (empty = all).
+#  statuses: restrict to these status names (empty = all).
+# -----------------------------------------------------------------------------
+# connectors:
+#   jira:
+#     enabled: false
+#     base_url: https://myorg.atlassian.net
+#     email: me@example.com
+#     api_token: your_jira_api_token
+#     project_keys: []           # e.g. [ENG, OPS]
+#     statuses: []               # e.g. [In Progress, Done]
+#     days_past: 180
+#     max_issues: 1000
+#     source_name: jira
+
+
+# -----------------------------------------------------------------------------
+#  Connector 34 — Confluence Pages
+# -----------------------------------------------------------------------------
+#  Fetches pages from Confluence Cloud via the REST API.
+#  Uses the same Atlassian credentials as the Jira connector.
+#  space_keys: restrict to these space keys (empty = all spaces).
+# -----------------------------------------------------------------------------
+# connectors:
+#   confluence:
+#     enabled: false
+#     base_url: https://myorg.atlassian.net
+#     email: me@example.com
+#     api_token: your_atlassian_api_token
+#     space_keys: []             # e.g. [ENG, DOCS]
+#     days_past: 180
+#     max_pages: 500
+#     source_name: confluence
+
+
+# -----------------------------------------------------------------------------
+#  Connector 35 — GitLab Issues & Merge Requests
+# -----------------------------------------------------------------------------
+#  Fetches issues and MRs from GitLab projects via the GitLab REST API.
+#  api_token: personal access token from https://gitlab.com/-/profile/personal_access_tokens
+#  base_url: change to your self-hosted instance URL if needed.
+#  projects: list of project paths or IDs, e.g. ["mygroup/myrepo"].
+#  state: opened | closed | merged | all
+# -----------------------------------------------------------------------------
+# connectors:
+#   gitlab:
+#     enabled: false
+#     api_token: glpat-your_token
+#     base_url: https://gitlab.com
+#     projects: []               # e.g. [mygroup/myrepo]
+#     fetch_issues: true
+#     fetch_mrs: true
+#     state: all
+#     days_past: 180
+#     source_name: gitlab
+
+
+# -----------------------------------------------------------------------------
+#  Connector 36 — Trello Cards
+# -----------------------------------------------------------------------------
+#  Fetches cards from all accessible Trello boards.
+#  api_key + token: generate at https://trello.com/power-ups/admin
+#  board_ids: restrict to these board IDs (empty = all boards).
+# -----------------------------------------------------------------------------
+# connectors:
+#   trello:
+#     enabled: false
+#     api_key: your_trello_api_key
+#     token: your_trello_token
+#     board_ids: []
+#     include_closed: false
+#     days_past: 180
+#     source_name: trello
+
+
+# -----------------------------------------------------------------------------
+#  Connector 37 — Asana Tasks
+# -----------------------------------------------------------------------------
+#  Fetches tasks from Asana workspaces or projects via the Asana REST API.
+#  access_token: personal access token from https://app.asana.com/0/my-apps
+#  workspace_gids: restrict to these workspace GIDs (empty = all).
+#  project_gids: restrict to tasks in these project GIDs (empty = workspace tasks).
+#  assigned_to_me: only fetch tasks assigned to the token owner.
+# -----------------------------------------------------------------------------
+# connectors:
+#   asana:
+#     enabled: false
+#     access_token: "1/12345:abcdef..."
+#     workspace_gids: []
+#     project_gids: []
+#     assigned_to_me: true
+#     include_completed: false
+#     days_past: 180
+#     source_name: asana
+
+
+# -----------------------------------------------------------------------------
+#  Connector 38 — Roam Research
+# -----------------------------------------------------------------------------
+#  Parses a Roam Research JSON export. Export your graph from Roam at
+#  Settings → Export All → JSON.
+#  Roam syntax ({{[[...]]}} template refs, [[page refs]], #tags) is stripped.
+# -----------------------------------------------------------------------------
+# connectors:
+#   roam:
+#     enabled: false
+#     export_path: ~/Downloads/roam-export.json
+#     days_past: 365
+#     source_name: roam
+
+
+# -----------------------------------------------------------------------------
+#  Connector 39 — Apple Notes
+# -----------------------------------------------------------------------------
+#  Reads notes from the Apple Notes SQLite database. macOS only.
+#  The database is automatically copied to a temp directory before reading
+#  to avoid locking conflicts with the running Notes app.
+#  db_path: leave blank to use the standard macOS location.
+# -----------------------------------------------------------------------------
+# connectors:
+#   apple_notes:
+#     enabled: false
+#     # db_path: ~/Library/Group Containers/group.com.apple.notes/NoteStore.sqlite
+#     days_past: 365
+#     source_name: apple_notes
+
+
+# -----------------------------------------------------------------------------
+#  Connector 40 — Mastodon
+# -----------------------------------------------------------------------------
+#  Fetches toots from a Mastodon instance via the Mastodon API.
+#  access_token: generate in your instance Settings → Development.
+#  instance_url: your Mastodon instance, e.g. https://mastodon.social
+#  Uses Link-header pagination; boosts are skipped by default.
+# -----------------------------------------------------------------------------
+# connectors:
+#   mastodon:
+#     enabled: false
+#     instance_url: https://mastodon.social
+#     access_token: your_mastodon_token
+#     skip_boosts: true
+#     skip_replies: false
+#     days_past: 180
+#     source_name: mastodon
+
+
+# -----------------------------------------------------------------------------
+#  Connector 41 — Bluesky
+# -----------------------------------------------------------------------------
+#  Fetches posts from a Bluesky account via the AT Protocol API.
+#  password: use an App Password (Settings → App Passwords), not your main
+#    account password.
+# -----------------------------------------------------------------------------
+# connectors:
+#   bluesky:
+#     enabled: false
+#     handle: user.bsky.social
+#     password: your_app_password
+#     skip_reposts: true
+#     days_past: 180
+#     source_name: bluesky
+
+
+# -----------------------------------------------------------------------------
+#  Connector 42 — Chess.com
+# -----------------------------------------------------------------------------
+#  Fetches game archives from Chess.com (no API key required).
+#  Groups games by calendar month; parses PGN headers for game metadata.
+# -----------------------------------------------------------------------------
+# connectors:
+#   chesscom:
+#     enabled: false
+#     username: my_chess_username
+#     days_past: 365
+#     source_name: chesscom
+
+
+# -----------------------------------------------------------------------------
+#  Connector 43 — Duolingo
+# -----------------------------------------------------------------------------
+#  Parses a Duolingo data export JSON file. Request your data at
+#  https://www.duolingo.com/settings/privacy.
+#  Yields one document per language and one summary document.
+# -----------------------------------------------------------------------------
+# connectors:
+#   duolingo:
+#     enabled: false
+#     export_path: ~/Downloads/duolingo_data.json
+#     source_name: duolingo
+
+
+# -----------------------------------------------------------------------------
+#  Connector 44 — Feedly
+# -----------------------------------------------------------------------------
+#  Fetches articles from Feedly via the Feedly Developer API.
+#  access_token: generate a developer token at https://feedly.com/v3/auth/dev
+#  stream_id: leave blank to use the global.all stream (all feeds).
+#  unread_only: set true to only fetch unread articles.
+# -----------------------------------------------------------------------------
+# connectors:
+#   feedly:
+#     enabled: false
+#     access_token: your_feedly_token
+#     stream_id: ""
+#     days_past: 30
+#     unread_only: false
+#     max_articles: 500
+#     source_name: feedly
+
+
+# -----------------------------------------------------------------------------
+#  Connector 45 — Hypothes.is
+# -----------------------------------------------------------------------------
+#  Fetches web annotations via the Hypothes.is API.
+#  api_key: personal API token from https://hypothes.is/account/developer
+# -----------------------------------------------------------------------------
+# connectors:
+#   hypothesis:
+#     enabled: false
+#     api_key: your_hypothesis_token
+#     days_past: 365
+#     max_annotations: 5000
+#     source_name: hypothesis
+
+
+# -----------------------------------------------------------------------------
+#  Connector 46 — Garmin Connect
+# -----------------------------------------------------------------------------
+#  Reads activity data from a Garmin Connect data export.
+#  Request your export at https://www.garmin.com/en-US/account/datamanagement/
+#  export_path: path to the export ZIP file or extracted directory.
+# -----------------------------------------------------------------------------
+# connectors:
+#   garmin:
+#     enabled: false
+#     export_path: ~/Downloads/GarminExport.zip
+#     days_past: 365
+#     source_name: garmin
+
+
+# -----------------------------------------------------------------------------
+#  Connector 47 — Airtable
+# -----------------------------------------------------------------------------
+#  Fetches records from an Airtable base via the Airtable REST API.
+#  access_token: personal access token from https://airtable.com/account
+#  base_id: the base ID from your Airtable URL (starts with "app").
+#  table_names: restrict to these table names (empty = all tables).
+# -----------------------------------------------------------------------------
+# connectors:
+#   airtable:
+#     enabled: false
+#     access_token: patXXX...
+#     base_id: appXXX...
+#     table_names: []
+#     days_past: 180
+#     max_records: 1000
+#     source_name: airtable

@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# uv
+.uv/
+
+# Type checking
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# MemoryMesh runtime state — never commit user data or indices
+.memorymesh/
+config.yaml
+*.pkl
+
+# Developer tooling — not for public repos
+CLAUDE.md
+WORKLOG.md
+FIELD_TEST_NOTES.md
+ROADMAP_GODMODE.md
+rewrite.py
+PROMPT.md
+PROMPTS.md
+*.prompt.md
+
+# Environment / secrets
+.env
+.env.*
+*.key
+*.pem
+*.p12
+
+# Benchmarks output
+benchmarks/results/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# VS Code extension build artifacts
+extensions/vscode/out/
+extensions/vscode/node_modules/
+extensions/vscode/*.vsix
+
+# Browser extension build artifacts
+extensions/browser/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
