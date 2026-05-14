@@ -253,9 +253,9 @@ server:
 
 ## Benchmarks
 
-> Benchmarks will be published after CI runs across all three platforms. The goal is reproducible numbers — not "fast on my machine."
+> Benchmark results will be published here. Scripts are already in `benchmarks/` and runnable locally — contributions with reproducible numbers are welcome.
 
-Scripts are in `benchmarks/` and runnable locally:
+
 
 - `bench_indexing.py` — indexing throughput (chunks/s, MB/s) on a synthetic corpus
 - `bench_search_latency.py` — p50/p95/p99 search latency across hybrid/dense/sparse modes
