@@ -1,0 +1,13 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/glama.json",
+  "name": "MemoryMesh",
+  "description": "Persistent memory layer for MCP agents and coding copilots. Indexes local files and exposes 15 MCP tools for semantic search, tiered memory, and real-time sync. Local-first, zero cloud, SQLite-backed.",
+  "license": "MIT",
+  "homepage": "https://github.com/kilhubprojects/memory-mesh",
+  "categories": ["knowledge-and-memory", "rag-systems", "search"],
+  "keywords": ["memory", "rag", "mcp", "sqlite", "embeddings", "local", "search", "agents", "persistent-memory"],
+  "author": {
+    "name": "kilhubprojects",
+    "url": "https://github.com/kilhubprojects"
+  }
+}
